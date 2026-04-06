@@ -1,0 +1,339 @@
+local module = {}
+
+function module.Start()
+	local Players = game:GetService("Players")
+	local RunService = game:GetService("RunService")
+	local UserInputService = game:GetService("UserInputService")
+	local Lighting = game:GetService("Lighting")
+
+	local Player = Players.LocalPlayer
+	local Camera = workspace.CurrentCamera
+
+	local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+	local s = isMobile and 0.75 or 1
+
+	local function waitForCharacter()
+		local char = Player.Character or Player.CharacterAdded:Wait()
+		local hum = char:WaitForChild("Humanoid")
+		local hrp = char:WaitForChild("HumanoidRootPart")
+		return char, hum, hrp
+	end
+
+	local char, hum, hrp = waitForCharacter()
+
+	local Enabled = {
+		Stats = false,
+		SpeedMeter = false,
+		GalaxySky = false,
+		RainbowUI = false,
+		Sprint = false,
+	}
+
+	local Values = {
+		FOV = 70,
+		SprintSpeed = 22,
+		NormalSpeed = 16,
+		ThemeIndex = 1,
+	}
+
+	local Themes = {
+		{
+			Main = Color3.fromRGB(20,20,30),
+			Button = Color3.fromRGB(35,35,55),
+			Stroke = Color3.fromRGB(100,100,255)
+		},
+		{
+			Main = Color3.fromRGB(30,20,20),
+			Button = Color3.fromRGB(55,35,35),
+			Stroke = Color3.fromRGB(255,100,100)
+		},
+		{
+			Main = Color3.fromRGB(20,30,20),
+			Button = Color3.fromRGB(35,55,35),
+			Stroke = Color3.fromRGB(100,255,100)
+		}
+	}
+
+	local function MakeDraggable(frame)
+		local dragging, dragInput, dragStart, startPos
+
+		local function update(input)
+			local delta = input.Position - dragStart
+			frame.Position = UDim2.new(
+				startPos.X.Scale,
+				startPos.X.Offset + delta.X,
+				startPos.Y.Scale,
+				startPos.Y.Offset + delta.Y
+			)
+		end
+
+		frame.InputBegan:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+				dragging = true
+				dragStart = input.Position
+				startPos = frame.Position
+
+				input.Changed:Connect(function()
+					if input.UserInputState == Enum.UserInputState.End then
+						dragging = false
+					end
+				end)
+			end
+		end)
+
+		frame.InputChanged:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+				dragInput = input
+			end
+		end)
+
+		UserInputService.InputChanged:Connect(function(input)
+			if input == dragInput and dragging then
+				update(input)
+			end
+		end)
+	end
+
+	-- GUI
+	local gui = Instance.new("ScreenGui")
+	gui.Name = "PlayerPanel"
+	gui.ResetOnSpawn = false
+	gui.Parent = Player:WaitForChild("PlayerGui")
+
+	local openBtn = Instance.new("TextButton", gui)
+	openBtn.Size = UDim2.new(0, 50, 0, 50)
+	openBtn.Position = UDim2.new(0, 15, 0.5, -25)
+	openBtn.Text = "≡"
+	openBtn.TextSize = 28
+	openBtn.Font = Enum.Font.GothamBold
+	openBtn.TextColor3 = Color3.new(1,1,1)
+	openBtn.BackgroundColor3 = Color3.fromRGB(35,35,55)
+	local obc = Instance.new("UICorner", openBtn)
+	obc.CornerRadius = UDim.new(1,0)
+
+	local main = Instance.new("Frame", gui)
+	main.Size = UDim2.new(0, 340 * s, 0, 460 * s)
+	main.Position = UDim2.new(0.5, -170 * s, 0.5, -230 * s)
+	main.BackgroundColor3 = Themes[Values.ThemeIndex].Main
+	main.BorderSizePixel = 0
+	main.Active = true
+	main.Visible = true
+
+	local corner = Instance.new("UICorner", main)
+	corner.CornerRadius = UDim.new(0, 14)
+
+	local stroke = Instance.new("UIStroke", main)
+	stroke.Thickness = 1.5
+	stroke.Color = Themes[Values.ThemeIndex].Stroke
+
+	MakeDraggable(main)
+
+	local title = Instance.new("TextLabel", main)
+	title.Size = UDim2.new(1, 0, 0, 40 * s)
+	title.BackgroundTransparency = 1
+	title.Text = "PLAYER PANEL"
+	title.TextColor3 = Color3.fromRGB(255,255,255)
+	title.Font = Enum.Font.GothamBold
+	title.TextSize = 22 * s
+
+	local layout = Instance.new("UIListLayout")
+	layout.Parent = main
+	layout.Padding = UDim.new(0, 8)
+	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	layout.VerticalAlignment = Enum.VerticalAlignment.Top
+
+	title.LayoutOrder = 1
+
+	local padding = Instance.new("UIPadding", main)
+	padding.PaddingTop = UDim.new(0, 10)
+	padding.PaddingLeft = UDim.new(0, 10)
+	padding.PaddingRight = UDim.new(0, 10)
+	padding.PaddingBottom = UDim.new(0, 10)
+
+	local buttons = {}
+
+	local function applyTheme()
+		local theme = Themes[Values.ThemeIndex]
+		main.BackgroundColor3 = theme.Main
+		stroke.Color = theme.Stroke
+		openBtn.BackgroundColor3 = theme.Button
+		for _, btn in ipairs(buttons) do
+			btn.BackgroundColor3 = theme.Button
+		end
+	end
+
+	local function createButton(text, callback)
+		local btn = Instance.new("TextButton")
+		btn.Size = UDim2.new(1, -10, 0, 38 * s)
+		btn.BackgroundColor3 = Themes[Values.ThemeIndex].Button
+		btn.TextColor3 = Color3.fromRGB(255,255,255)
+		btn.Font = Enum.Font.GothamBold
+		btn.TextSize = 16 * s
+		btn.Text = text
+		btn.AutoButtonColor = true
+		btn.Parent = main
+
+		local c = Instance.new("UICorner", btn)
+		c.CornerRadius = UDim.new(0, 10)
+
+		table.insert(buttons, btn)
+		btn.MouseButton1Click:Connect(callback)
+		return btn
+	end
+
+	local speedMeterGui = nil
+	local speedMeterConn = nil
+	local statsLabel = nil
+	local statsConn = nil
+	local rainbowConn = nil
+
+	local function toggleSpeedMeter()
+		Enabled.SpeedMeter = not Enabled.SpeedMeter
+
+		if speedMeterConn then speedMeterConn:Disconnect() speedMeterConn = nil end
+		if speedMeterGui then speedMeterGui:Destroy() speedMeterGui = nil end
+
+		if Enabled.SpeedMeter then
+			speedMeterGui = Instance.new("BillboardGui")
+			speedMeterGui.Name = "SpeedMeter"
+			speedMeterGui.Adornee = char:FindFirstChild("Head") or hrp
+			speedMeterGui.Size = UDim2.new(0, 150, 0, 40)
+			speedMeterGui.StudsOffset = Vector3.new(0, 3.5, 0)
+			speedMeterGui.AlwaysOnTop = true
+			speedMeterGui.Parent = Player.PlayerGui
+
+			local label = Instance.new("TextLabel", speedMeterGui)
+			label.Size = UDim2.new(1,0,1,0)
+			label.BackgroundTransparency = 1
+			label.Text = "Speed: 0"
+			label.TextColor3 = Color3.new(1,1,1)
+			label.TextStrokeTransparency = 0
+			label.Font = Enum.Font.GothamBold
+			label.TextSize = 16 * s
+
+			speedMeterConn = RunService.Heartbeat:Connect(function()
+				if hrp and label then
+					local vel = Vector3.new(hrp.AssemblyLinearVelocity.X, 0, hrp.AssemblyLinearVelocity.Z)
+					label.Text = "Speed: " .. tostring(math.round(vel.Magnitude))
+				end
+			end)
+		end
+	end
+
+	local function toggleStats()
+		Enabled.Stats = not Enabled.Stats
+
+		if statsConn then statsConn:Disconnect() statsConn = nil end
+		if statsLabel then statsLabel:Destroy() statsLabel = nil end
+
+		if Enabled.Stats then
+			statsLabel = Instance.new("TextLabel", main)
+			statsLabel.Size = UDim2.new(1, -10, 0, 100 * s)
+			statsLabel.BackgroundColor3 = Color3.fromRGB(25,25,40)
+			statsLabel.TextColor3 = Color3.new(1,1,1)
+			statsLabel.Font = Enum.Font.Code
+			statsLabel.TextSize = 14 * s
+			statsLabel.TextWrapped = true
+			statsLabel.TextYAlignment = Enum.TextYAlignment.Top
+			statsLabel.Text = "Loading stats..."
+
+			local c = Instance.new("UICorner", statsLabel)
+			c.CornerRadius = UDim.new(0, 10)
+
+			statsConn = RunService.Heartbeat:Connect(function()
+				if hum and hrp and statsLabel then
+					local vel = Vector3.new(hrp.AssemblyLinearVelocity.X, 0, hrp.AssemblyLinearVelocity.Z)
+					statsLabel.Text =
+						"WalkSpeed: " .. math.floor(hum.WalkSpeed) ..
+						"\nJumpPower: " .. math.floor(hum.JumpPower) ..
+						"\nGravity: " .. math.floor(workspace.Gravity) ..
+						"\nSpeed: " .. math.floor(vel.Magnitude) ..
+						"\nFOV: " .. math.floor(Camera.FieldOfView)
+				end
+			end)
+		end
+	end
+
+	local function toggleGalaxySky()
+		Enabled.GalaxySky = not Enabled.GalaxySky
+
+		if Enabled.GalaxySky then
+			Lighting.Ambient = Color3.fromRGB(80, 0, 120)
+			Lighting.OutdoorAmbient = Color3.fromRGB(60, 0, 100)
+			Lighting.Brightness = 3
+			Lighting.ClockTime = 0
+			Lighting.FogEnd = 100000
+		else
+			Lighting.Ambient = Color3.fromRGB(127,127,127)
+			Lighting.OutdoorAmbient = Color3.fromRGB(127,127,127)
+			Lighting.Brightness = 2
+			Lighting.ClockTime = 14
+			Lighting.FogEnd = 100000
+		end
+	end
+
+	local function toggleRainbow()
+		Enabled.RainbowUI = not Enabled.RainbowUI
+
+		if rainbowConn then rainbowConn:Disconnect() rainbowConn = nil end
+
+		if Enabled.RainbowUI then
+			rainbowConn = RunService.Heartbeat:Connect(function()
+				local hue = (tick() % 5) / 5
+				stroke.Color = Color3.fromHSV(hue, 1, 1)
+			end)
+		else
+			applyTheme()
+		end
+	end
+
+	local function toggleSprint()
+		Enabled.Sprint = not Enabled.Sprint
+		hum.WalkSpeed = Enabled.Sprint and Values.SprintSpeed or Values.NormalSpeed
+	end
+
+	createButton("FOV +10", function()
+		Values.FOV += 10
+		Camera.FieldOfView = Values.FOV
+	end)
+
+	createButton("FOV -10", function()
+		Values.FOV = math.max(40, Values.FOV - 10)
+		Camera.FieldOfView = Values.FOV
+	end)
+
+	createButton("Toggle Speed Meter", toggleSpeedMeter)
+	createButton("Toggle Stats", toggleStats)
+	createButton("Toggle Galaxy Sky", toggleGalaxySky)
+	createButton("Toggle Rainbow UI", toggleRainbow)
+	createButton("Toggle Sprint", toggleSprint)
+
+	createButton("Next Theme", function()
+		Values.ThemeIndex += 1
+		if Values.ThemeIndex > #Themes then
+			Values.ThemeIndex = 1
+		end
+		if not Enabled.RainbowUI then
+			applyTheme()
+		end
+	end)
+
+	createButton("Close Panel", function()
+		main.Visible = false
+	end)
+
+	openBtn.MouseButton1Click:Connect(function()
+		main.Visible = not main.Visible
+	end)
+
+	Player.CharacterAdded:Connect(function(newChar)
+		char = newChar
+		hum = char:WaitForChild("Humanoid")
+		hrp = char:WaitForChild("HumanoidRootPart")
+	end)
+
+	applyTheme()
+	Camera.FieldOfView = Values.FOV
+end
+
+return module
